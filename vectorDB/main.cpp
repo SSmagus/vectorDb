@@ -7,6 +7,12 @@ private:
 
     vector<int> ids;
     vector<vector<float>> vectors;
+    
+    int numClusters;
+    vector<vector<float>> centroids;
+    vector<vector<int>> buckets; 
+
+    int lastIndexedSize = 0;
 
     vector<float> normalize(const vector<float>& v){
         float tsum=0;
@@ -27,12 +33,27 @@ private:
 
         return normalizedVector;
     }
+
     float dot(const vector<float>& a, const vector<float>& b){
         float res=0;
         for(int i=0; i<dim; i++){
             res+=a[i]*b[i];
         }
         return res;
+    }
+
+    int closestCentroid(const vector<float>& v){
+        float bestMatch=-1e9;
+        int bestMatchIndex=-1;
+
+        for(int i=0; i<numClusters; i++){
+            float sim= dot(centroids[i], v);
+            if(sim>bestMatch){
+                bestMatch=sim;
+                bestMatchIndex=i;
+            }
+        }
+        return bestMatchIndex;
     }
 
 public:
@@ -47,21 +68,30 @@ public:
 
         ids.push_back(id);
         vectors.push_back(normalize(vec));
-        cout<<"inserted"<<endl;
     }
 
     
     vector<int> query(const vector<float>& vec, int k){
         assert((int)vec.size() == dim);
 
+        int n=vectors.size();
+
+        if (n == 0 || k <= 0) { return vector<int>(); }
+
+        if(lastIndexedSize == 0 || n>=2*lastIndexedSize){
+            int clusters = max(1, (int)sqrt(n));
+            buildIndex(clusters);
+            lastIndexedSize = n;
+        }
+
         priority_queue<pair<float, int>,vector<pair<float, int>>, greater<pair<float, int>>> heap;
         vector<float> normalizedVec= normalize(vec);
 
-        int n=vectors.size();
+        int c= closestCentroid(normalizedVec);
         
-        for(int i=0; i<n; i++){
-            float dotProduct= dot(vectors[i], normalizedVec);
-            heap.push({dotProduct, ids[i]});
+        for(int idx: buckets[c]){
+            float dotProduct= dot(vectors[idx], normalizedVec);
+            heap.push({dotProduct, ids[idx]});
             if(heap.size()>k) heap.pop();
         }
 
@@ -76,6 +106,31 @@ public:
         reverse(res.begin(), res.end());
 
         return res;
+    }
+
+    void buildIndex(int k) {
+        int n = vectors.size();
+
+        numClusters = min(k, n);
+
+        vector<int> idx(n);
+        iota(idx.begin(), idx.end(), 0);
+
+        random_device rd;
+        mt19937 rng(rd());
+        shuffle(idx.begin(), idx.end(), rng);
+
+        centroids.clear();
+        buckets.assign(numClusters, {});   
+
+        for (int i = 0; i < numClusters; i++) {  
+            centroids.push_back(vectors[idx[i]]);
+        }
+
+        for (int i = 0; i < n; i++) {
+            int c = closestCentroid(vectors[i]);
+            buckets[c].push_back(i);
+        }
     }
 };
 
