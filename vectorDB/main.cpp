@@ -47,6 +47,7 @@ public:
 
         ids.push_back(id);
         vectors.push_back(normalize(vec));
+        cout<<"inserted"<<endl;
     }
 
     
@@ -77,3 +78,36 @@ public:
         return res;
     }
 };
+
+int main() {
+    const int DIM=4;
+    VectorDB db(DIM);
+
+    while (true) {
+        string cmd;
+        cin >> cmd;
+
+        if (cmd == "insert") {
+            int id;
+            cin >> id;
+            vector<float> v(DIM);
+            for (int i = 0; i < DIM; i++) cin >> v[i];
+            db.insert(id, v);
+        }
+
+        else if (cmd == "query") {
+            vector<float> v(DIM);
+            for (int i = 0; i < DIM; i++) cin >> v[i];
+            int k;
+            cin >> k;
+            auto res = db.query(v, k);
+            for (int id : res) cout << id << " ";
+            cout << "\n";
+        }
+
+        else if (cmd == "exit") {
+            break;
+        }
+    }
+}
+
