@@ -11,8 +11,8 @@ private:
     int numClusters;
     vector<vector<float>> centroids;
     vector<vector<int>> buckets; 
-
-    int lastIndexedSize = 0;
+    int defaultNprobe;
+    int lastIndexedSize;
 
     vector<float> normalize(const vector<float>& v){
         float tsum=0;
@@ -56,10 +56,33 @@ private:
         return bestMatchIndex;
     }
 
+    vector<int> selectTopCentroids(const vector<float>& query, int nprobe){
+        vector<float> normalizedVector= query;
+        priority_queue<pair<float, int>, vector<pair<float, int>>, greater<pair<float, int>>> heap;
+        int k=min(nprobe, numClusters);
+
+        vector<int> res(k);
+
+        for(int i=0; i<numClusters; i++){
+            float sim= dot(normalizedVector, centroids[i]);
+            heap.push({sim, i});
+            if(heap.size()>k) heap.pop();
+        }
+
+        for(int i=0; i<k; i++){
+            res[i]=heap.top().second;
+            heap.pop();
+        }
+        return res;
+    }
+
+
 public:
 
     VectorDB(int dim){
         this->dim=dim;
+        lastIndexedSize=0;
+        defaultNprobe=1;
     }
 
     
@@ -71,7 +94,7 @@ public:
     }
 
     
-    vector<int> query(const vector<float>& vec, int k){
+    vector<int> query(const vector<float>& vec, int k, int nprobe=-1){
         assert((int)vec.size() == dim);
 
         int n=vectors.size();
@@ -86,13 +109,26 @@ public:
 
         priority_queue<pair<float, int>,vector<pair<float, int>>, greater<pair<float, int>>> heap;
         vector<float> normalizedVec= normalize(vec);
+        int probe=nprobe;
+    
+        if(nprobe==-1){
+            probe=defaultNprobe;
+        }
 
-        int c= closestCentroid(normalizedVec);
+        vector<int> c;
+        if(probe == 1){
+            c={closestCentroid(normalizedVec)};
+        }
+        else{
+            c=selectTopCentroids(normalizedVec, probe);
+        }
         
-        for(int idx: buckets[c]){
-            float dotProduct= dot(vectors[idx], normalizedVec);
-            heap.push({dotProduct, ids[idx]});
-            if(heap.size()>k) heap.pop();
+        for(int i: c){
+            for(int idx: buckets[i]){
+                float dotProduct= dot(vectors[idx], normalizedVec);
+                heap.push({dotProduct, ids[idx]});
+                if(heap.size()>k) heap.pop();
+            }
         }
 
         int matches=min(k, (int)heap.size());
